@@ -46,6 +46,7 @@ class GameMeta(BaseModel):
     name: str
     icon: str
     color: str
+    timed: bool
     duration_seconds: int
     max_errors: int
 

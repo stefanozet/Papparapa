@@ -31,7 +31,7 @@ export class GameEngine {
   /** Play the whole game; resolves with the result summary. */
   async run() {
     this._renderHud();
-    this._startTimer();
+    if (this.meta.timed) this._startTimer();
     for (const activity of this.activities) {
       if (this.stopped) break;
       const over = await this._playActivity(activity);
@@ -106,16 +106,24 @@ export class GameEngine {
   }
 }
 
-/** Build the HUD DOM (hearts + score + timer bar) and return a controller. */
-export function buildHud(container) {
+/**
+ * Build the HUD DOM (hearts + score, and a timer bar only for timed games)
+ * and return a controller.
+ */
+export function buildHud(container, { timed = true } = {}) {
   const hud = el("div", "hud");
   const hearts = el("div", "hearts");
   const score = el("div", "score");
   hud.append(hearts, score);
-  const track = el("div", "timer-track");
-  const bar = el("div", "timer-bar");
-  track.appendChild(bar);
-  container.append(hud, track);
+  container.appendChild(hud);
+
+  let bar = null;
+  if (timed) {
+    const track = el("div", "timer-track");
+    bar = el("div", "timer-bar");
+    track.appendChild(bar);
+    container.appendChild(track);
+  }
 
   return {
     render({ hearts: h, max, score: s }) {
@@ -127,6 +135,7 @@ export function buildHud(container) {
       score.textContent = "⭐ " + s;
     },
     timer(fraction) {
+      if (!bar) return;
       bar.style.width = Math.max(0, fraction * 100) + "%";
       bar.style.background = fraction < 0.25 ? "var(--orange)" : "var(--accent)";
     },

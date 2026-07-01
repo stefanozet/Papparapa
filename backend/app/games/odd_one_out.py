@@ -20,7 +20,8 @@ class OddOneOutGame(ChoiceGame):
     name = "Trova l'intruso"
     icon = "🔍"
     color = "#E8734A"
-    duration_seconds = 70
+    timed = False          # ends at 3 errors or when the activities run out
+    activity_count = 10
 
     def _one(self) -> dict[str, Any]:
         main_cat, other_cat = random.sample(list(CATEGORIES), 2)

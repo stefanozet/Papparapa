@@ -204,6 +204,7 @@ async function showStats() {
 // --------------------------------------------------------------------------- //
 async function runGames(keys) {
   let total = 0;
+  let gameOver = false;
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i];
     const start = await api.start(key, currentChild.id);
@@ -218,9 +219,15 @@ async function runGames(keys) {
       ended_reason: result.reason,
     });
     total += finish.score;
+
+    // Three errors end the whole partita, not just the current game.
+    if (result.reason === "errors") {
+      gameOver = true;
+      break;
+    }
     await showGameResult(start.game, finish, i < keys.length - 1);
   }
-  await showFinalResult(total, keys.length);
+  await showFinalResult(total, gameOver);
 }
 
 /** Wordless animated demo, then a big "ready" button. */
@@ -253,7 +260,7 @@ async function playGame(game, activities) {
   let hud;
   const screen = showScreen((s) => {
     s.classList.add("game-screen");
-    hud = buildHud(s);
+    hud = buildHud(s, { timed: game.timed });
     const stage = el("div", null);
     stage.id = "stage";
     s.appendChild(stage);
@@ -288,14 +295,16 @@ function showGameResult(game, finish, more) {
   });
 }
 
-async function showFinalResult(total, gameCount) {
-  celebrate(["🏆", "⭐", "🎉", "🌟", "🎈", "✨"], 40);
+async function showFinalResult(total, gameOver) {
+  // A partita that ended on the third mistake still celebrates the points won,
+  // just a little more gently (no confetti, a friendly face instead of a cup).
+  if (!gameOver) celebrate(["🏆", "⭐", "🎉", "🌟", "🎈", "✨"], 40);
   await wait(150);
   showScreen((screen) => {
     screen.classList.add("center");
     setTheme("#5B8DEF");
     screen.append(
-      el("div", "big-emoji", { textContent: "🏆" }),
+      el("div", "big-emoji", { textContent: gameOver ? "🙂" : "🏆" }),
       el("div", "big-score", { textContent: "⭐ " + total }),
       el("p", "subtitle", { textContent: currentChild.avatar })
     );

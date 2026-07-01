@@ -22,6 +22,7 @@ class MazeGame(Game):
     name = "Il topo e il formaggio"
     icon = "🧀"
     color = "#3FA796"
+    timed = True           # you could wander forever, so the timer bounds the game
     duration_seconds = 90
     activity_count = 8
 

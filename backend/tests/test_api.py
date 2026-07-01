@@ -49,9 +49,13 @@ def test_protected_route_requires_token():
 
 def test_game_catalogue():
     data = client.get("/api/games").json()
-    keys = {g["key"] for g in data["games"]}
-    assert {"sequence", "odd", "maze"} <= keys
+    by_key = {g["key"]: g for g in data["games"]}
+    assert {"sequence", "odd", "maze"} <= set(by_key)
     assert len(data["default_run"]) == 3
+    # Choice games have no timer; the maze does.
+    assert by_key["sequence"]["timed"] is False
+    assert by_key["odd"]["timed"] is False
+    assert by_key["maze"]["timed"] is True
 
 
 def test_full_play_through(auth_headers):

@@ -24,8 +24,9 @@ class Game(ABC):
     name: str
     icon: str                 # emoji shown in menus (visual, wordless)
     color: str                # theme color (hex)
+    timed: bool = True        # games where you cannot fail (e.g. maze) rely on the timer
     duration_seconds: int = 75
-    activity_count: int = 20  # upper bound; the timer usually ends the game first
+    activity_count: int = 20  # for untimed games this is the fixed length
     max_errors: int = 3
 
     @abstractmethod
@@ -46,6 +47,7 @@ class Game(ABC):
             "name": self.name,
             "icon": self.icon,
             "color": self.color,
+            "timed": self.timed,
             "duration_seconds": self.duration_seconds,
             "max_errors": self.max_errors,
         }

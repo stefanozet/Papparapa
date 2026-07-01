@@ -27,7 +27,8 @@ class SequenceGame(ChoiceGame):
     name = "Completa la sequenza"
     icon = "🔁"
     color = "#5B8DEF"
-    duration_seconds = 75
+    timed = False          # ends at 3 errors or when the activities run out
+    activity_count = 10
 
     def _one(self) -> dict[str, Any]:
         pool = random.choice(POOLS)

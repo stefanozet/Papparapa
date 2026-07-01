@@ -17,8 +17,10 @@ partita finisce.**
 - **Registrazione utenti**: il genitore crea un account (email/password) e sotto
   di sé uno o più **profili bambino**, scelti visivamente tramite avatar. Solo le
   schermate del genitore usano testo; tutto ciò che tocca il bambino è wordless.
-- **Giochi a tempo**: ogni gioco ha un limite di secondi; una barra mostra il
-  tempo che scorre.
+- **Durata limitata, con o senza timer**: nei giochi dove *si può sbagliare*
+  (sequenza, intruso) non c'è timer — il gioco dura un numero fisso di
+  micro-attività e finisce prima se si arriva a 3 errori. Nel labirinto, dove si
+  potrebbe girare all'infinito, c'è un **timer** con barra che scorre.
 - **Tutorial visuale animato** prima di ogni gioco (una manina 👆 indica la
   risposta giusta; nel labirinto il topo cammina da solo fino al formaggio).
 - **Regola dei 3 errori**: tre cuori ❤️❤️❤️; al terzo errore il gioco finisce.
@@ -137,10 +139,16 @@ modo autorevole il punteggio dei giochi a scelta (per il labirinto il risultato
 
 ## ⚙️ Scelte e assunzioni (facili da cambiare)
 
-- **"Al terzo errore la partita finisce"** è interpretato come *fine del gioco
-  corrente*, dopo il quale si passa al gioco successivo della partita. Per far
-  terminare l'intera partita al terzo errore basta interrompere il ciclo in
-  `runGames()` (`frontend/js/app.js`) quando `result.reason === "errors"`.
+- **"Al terzo errore la partita finisce"**: il terzo errore in un gioco termina
+  l'**intera partita** (non solo il gioco corrente). La schermata finale mostra
+  comunque le stelle guadagnate. Vedi il `break` in `runGames()`
+  (`frontend/js/app.js`) su `result.reason === "errors"`.
+- **Timer per gioco**: ogni gioco espone `timed` (in `games/*.py`). I giochi a
+  scelta sono `timed = False`; il labirinto è `timed = True`. Il frontend mostra
+  la barra del tempo solo quando `timed`.
+- **Online in futuro**: per ora gira in locale con SQLite. Per il deploy online
+  basterà puntare `PAPPARAPA_DATABASE_URL` a un DB gestito (es. Postgres),
+  impostare un `PAPPARAPA_SECRET_KEY` robusto e servire dietro HTTPS.
 - **Autenticazione**: account genitore con email/password (hash PBKDF2, token
   firmati HMAC, stateless). Nessun dato del bambino oltre nome e avatar.
 - **Punti per attività**: `PAPPARAPA_POINTS` (default 10).
