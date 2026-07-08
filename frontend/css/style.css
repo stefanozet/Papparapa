@@ -112,6 +112,7 @@ form { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width:
 .profile-card .name { font-weight: 700; font-size: 1rem; }
 .game-card { border-bottom: 6px solid var(--accent); }
 .game-card .label { font-size: .8rem; opacity: .7; text-align: center; }
+.game-card .diff { font-size: .7rem; letter-spacing: 1px; line-height: 1; }
 
 .avatar-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; max-width: 340px; }
 .avatar-pick { font-size: 2rem; padding: 10px; }
@@ -119,11 +120,26 @@ form { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width:
 
 /* ---------- Game HUD ---------- */
 .game-screen { padding: 0; background: var(--bg); }
-.hud { padding: 14px 18px 6px; display: flex; align-items: center; gap: 10px; }
+.hud { padding: 14px 18px 6px; display: flex; align-items: center; gap: 10px; position: relative; }
 .hearts { font-size: 1.5rem; letter-spacing: 2px; }
 .hearts .lost { filter: grayscale(1); opacity: .35; }
-.hud .score { margin-left: auto; font-weight: 800; font-size: 1.3rem; }
-.hud .score .star { }
+.hud .score { margin-left: auto; font-weight: 800; font-size: 1.3rem; transform-origin: right center; }
+.hud .score.bump { animation: scorePop .5s ease; }
+.hud .level {
+  font-weight: 800; font-size: 1.05rem; background: #fff; padding: 4px 12px;
+  border-radius: 999px; box-shadow: var(--shadow);
+}
+.hud .level.bump { animation: scorePop .5s ease; }
+@keyframes scorePop {
+  0% { transform: scale(1); color: var(--ink); }
+  40% { transform: scale(1.45); color: var(--accent); }
+  100% { transform: scale(1); color: var(--ink); }
+}
+.score-pop {
+  position: absolute; right: 18px; top: 6px; font-weight: 800; font-size: 1.1rem;
+  color: var(--accent); pointer-events: none; animation: floatUp .8s ease-out forwards;
+}
+@keyframes floatUp { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-28px); } }
 .timer-track { height: 12px; background: #eadfd3; border-radius: 8px; margin: 4px 18px 0; overflow: hidden; }
 .timer-bar { height: 100%; width: 100%; background: var(--accent); border-radius: 8px; transition: width .1s linear; }
 
@@ -138,14 +154,62 @@ form { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width:
 
 .options { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; }
 .option {
+  position: relative;
   font-size: 3rem; width: 96px; height: 96px; display: grid; place-items: center;
   background: #fff; border-radius: var(--radius); box-shadow: var(--shadow);
-  transition: transform .12s, background .2s;
+  transition: transform .12s, background .2s, outline-color .12s;
 }
+.option .num {
+  position: absolute; top: 5px; left: 9px; font-size: .85rem; font-weight: 800;
+  line-height: 1; opacity: .4; color: var(--ink);
+}
+.option .glyph { font-size: 3rem; line-height: 1; }
 .option:active { transform: scale(.92); }
+.option.selected { outline: 4px solid var(--accent); transform: scale(1.04); }
+.option.selected .num { opacity: .9; color: var(--accent); }
 .option.correct { background: #b8f0c8; animation: pop .4s; }
 .option.wrong { background: #ffc2b8; animation: shake .4s; }
 .option.hint { outline: 5px solid var(--accent); transform: scale(1.05); }
+
+/* Group options (counting game): several small symbols in one button. */
+.option.multi { width: 118px; }
+.option.multi .glyph {
+  font-size: 1.5rem; line-height: 1.35; word-break: break-all;
+  text-align: center; max-width: 98px;
+}
+
+/* Memory game: "look!" cue shown while the items can still be studied. */
+.peek-eyes { font-size: 2.2rem; animation: pop 1.2s ease-in-out infinite; }
+
+/* ---------- Level up ---------- */
+.level-up { display: flex; flex-direction: column; align-items: center; gap: 6px; animation: pop .5s; }
+.level-up .rocket { font-size: 4.2rem; line-height: 1; }
+.level-up .lvl { font-size: 3.4rem; font-weight: 900; color: var(--accent); line-height: 1; }
+.level-up .extra { font-size: 1.3rem; font-weight: 800; opacity: .65; }
+.level-line { font-size: 1.3rem; font-weight: 800; opacity: .8; }
+
+/* Simon game: a pad flashing during playback or after a correct tap. */
+.option.lit { background: #ffe9a8; outline: 5px solid var(--accent); transform: scale(1.1); }
+
+/* ---------- Memo ---------- */
+.memo-grid { display: grid; gap: 12px; }
+.memo-card {
+  position: relative; width: 84px; height: 84px; display: grid; place-items: center;
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  transition: transform .12s, background .2s;
+}
+.memo-card .num {
+  position: absolute; top: 5px; left: 9px; font-size: .85rem; font-weight: 800;
+  line-height: 1; opacity: .55; color: #fff;
+}
+.memo-card .face { font-size: 2.4rem; line-height: 1; }
+.memo-card.down { background: var(--accent); }
+.memo-card.down .face { opacity: .85; }
+.memo-card.up { background: #fff; animation: pop .3s; }
+.memo-card.up .num, .memo-card.matched .num { color: var(--ink); opacity: .35; }
+.memo-card.matched { background: #b8f0c8; }
+.memo-card.wrong { background: #ffc2b8; animation: shake .4s; }
+.memo-card:active { transform: scale(.93); }
 
 @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.25)} 100%{transform:scale(1)} }
 @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
@@ -170,6 +234,31 @@ form { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width:
 .dpad .up { grid-area: 1 / 2; } .dpad .left { grid-area: 2 / 1; }
 .dpad .right { grid-area: 2 / 3; } .dpad .down { grid-area: 3 / 2; }
 
+/* ---------- Scrollable page body (trophies, leaderboard) ---------- */
+.scroll-area {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; align-items: center; gap: 18px;
+  text-align: center; padding: 6px 6px 24px;
+  scrollbar-width: thin; scrollbar-color: var(--accent) transparent;
+}
+.scroll-area::-webkit-scrollbar { width: 8px; }
+.scroll-area::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 8px; }
+.scroll-area::-webkit-scrollbar-track { background: transparent; }
+
+.bottom-links { margin-top: auto; padding-top: 10px; display: flex; justify-content: center; gap: 6px; }
+
+/* ---------- Leaderboard ---------- */
+.rank-row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 12px 18px;
+}
+.rank-row .rank { flex: none; width: 36px; font-size: 1.4rem; font-weight: 800; text-align: center; }
+.rank-row .face { font-size: 1.9rem; line-height: 1; }
+.rank-row .name { flex: 1; font-weight: 700; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-row .pts { font-weight: 800; }
+.rank-row.me { outline: 4px solid var(--accent); }
+
 /* ---------- Overlays / results ---------- */
 .overlay {
   position: absolute; inset: 0; background: rgba(255,255,255,.94);
@@ -184,5 +273,15 @@ form { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width:
 /* Falling confetti / celebration */
 .fx-piece { position: fixed; top: -40px; font-size: 1.6rem; pointer-events: none; z-index: 999; }
 @keyframes fall { to { transform: translateY(110vh) rotate(360deg); opacity: .9; } }
+
+/* Floating sound on/off toggle */
+#mute {
+  position: fixed; right: 12px; bottom: 12px; z-index: 60;
+  width: 46px; height: 46px; border-radius: 50%;
+  background: #fff; box-shadow: var(--shadow);
+  font-size: 1.25rem; display: grid; place-items: center; opacity: .85;
+  transition: transform .12s;
+}
+#mute:active { transform: scale(.88); }
 
 .hidden { display: none !important; }

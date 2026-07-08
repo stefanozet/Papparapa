@@ -1,4 +1,4 @@
 """Game package. Import the registry to access available games."""
-from .registry import DEFAULT_RUN, GAMES
+from .registry import GAMES
 
-__all__ = ["GAMES", "DEFAULT_RUN"]
+__all__ = ["GAMES"]

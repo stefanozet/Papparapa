@@ -1,7 +1,8 @@
 // Renderer for the maze game ("Il topo e il formaggio").
 // Move the mouse 🐭 to the cheese 🧀. Walls cost a life. Works with an
 // on-screen d-pad, arrow keys and swipe gestures.
-import { clear, el, popFeedback, wait } from "../ui.js";
+import { sfx } from "../sound.js";
+import { burstFrom, clear, el, popFeedback, wait } from "../ui.js";
 
 const MOUSE = "🐭";
 const CHEESE = "🧀";
@@ -71,13 +72,17 @@ export function renderActivity(stage, activity, ctx) {
     if (target === undefined || target === "#") {
       board.classList.add("bump");
       setTimeout(() => board.classList.remove("bump"), 300);
+      sfx.bump();
       ctx.loseLife(); // may end the game
       return;
     }
     pos = [ny, nx];
     draw();
+    sfx.move();
     if (ny === activity.exit[0] && nx === activity.exit[1]) {
       done = true;
+      sfx.correct();
+      burstFrom(cells[ny][nx], ["🎉", "✨", "⭐"]);
       popFeedback(stage, "🎉");
       await wait(450);
       ctx.solved({ solved: true });
@@ -110,11 +115,9 @@ export function renderActivity(stage, activity, ctx) {
     else move(dy > 0 ? 1 : -1, 0);
   }, { passive: true });
 
-  // Clean up the global key listener when the activity ends.
-  const origSolved = ctx.solved, origLose = ctx.loseLife;
-  const cleanup = () => window.removeEventListener("keydown", onKey);
-  ctx.solved = (a) => { cleanup(); return origSolved(a); };
-  ctx.loseLife = () => { const over = origLose(); if (over) cleanup(); return over; };
+  // Drop the global key listener when the activity ends (solved, out of hearts
+  // or the timer running out).
+  ctx.onCleanup(() => window.removeEventListener("keydown", onKey));
 }
 
 // BFS shortest path, used by the tutorial to auto-walk to the cheese.
@@ -157,8 +160,10 @@ export async function renderTutorial(stage, activity, onDone) {
   await wait(500);
   for (const [r, c] of path) {
     draw(r, c);
+    sfx.move();
     await wait(420);
   }
+  sfx.correct();
   popFeedback(stage, "🎉");
   await wait(700);
   onDone();

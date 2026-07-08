@@ -14,7 +14,12 @@ import random
 import sys
 from typing import Any
 
-from .base import Game
+from ..base import Game
+
+
+# Grid size (in cells) is the generation parameter; a bigger maze means a
+# longer path and more dead-ends, so size is the difficulty prior.
+SIZE_DIFFICULTY = {2: 0.15, 3: 0.35, 4: 0.55, 5: 0.75, 6: 0.90}
 
 
 class MazeGame(Game):
@@ -22,9 +27,9 @@ class MazeGame(Game):
     name = "Il topo e il formaggio"
     icon = "🧀"
     color = "#3FA796"
-    timed = True           # you could wander forever, so the timer bounds the game
-    duration_seconds = 90
-    activity_count = 8
+    kind = "maze"
+    timed = True           # 15s (shared default); bumping a wall still costs a heart
+    activities_per_level = 4  # mazes are slow: a small batch per level is plenty
 
     def _maze(self, cells: int) -> dict[str, Any]:
         width = 2 * cells + 1
@@ -57,12 +62,12 @@ class MazeGame(Game):
             "exit": [2 * cells - 1, 2 * cells - 1],
         }
 
-    def generate(self) -> list[dict[str, Any]]:
-        acts = []
-        for i in range(self.activity_count):
-            cells = 3 if i < 2 else 4 if i < 5 else 5  # gently increasing difficulty
-            acts.append({"id": i, "kind": "maze", **self._maze(cells)})
-        return acts
+    def difficulty_buckets(self) -> dict[str, float]:
+        return {f"cells{n}": d for n, d in SIZE_DIFFICULTY.items()}
+
+    def _one(self, bucket: str) -> dict[str, Any]:
+        cells = int(bucket[len("cells"):])      # "cells4" -> 4
+        return {"kind": "maze", **self._maze(cells)}
 
     def tutorial(self) -> dict[str, Any]:
         return {"id": "t", "kind": "maze", **self._maze(2)}

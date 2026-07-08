@@ -2,13 +2,19 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
+from ..games import GAMES
 from ..security import get_current_parent
 
 router = APIRouter(tags=["profiles"])
+
+# Advanced games keep a personal best but stay out of the shared ⭐ economy:
+# their sessions never count toward total scores or the leaderboard.
+_ADVANCED_KEYS = frozenset(k for k, g in GAMES.items() if g.advanced)
 
 
 def _owned_child(child_id: int, parent: models.Parent, db: Session) -> models.ChildProfile:
@@ -46,6 +52,40 @@ def create_child(
     return child
 
 
+@router.get("/leaderboard", response_model=list[schemas.LeaderboardEntry])
+def leaderboard(
+    parent: models.Parent = Depends(get_current_parent),
+    db: Session = Depends(get_db),
+    limit: int = 50,
+):
+    """Global ranking across every child, by total score of finished games.
+
+    Children who have not played yet appear with 0 points, so a new player
+    still finds themself on the board.
+    """
+    total = func.coalesce(func.sum(models.GameSession.score), 0).label("total")
+    joined = (
+        (models.GameSession.child_id == models.ChildProfile.id)
+        & (models.GameSession.status == "finished")
+    )
+    if _ADVANCED_KEYS:
+        joined = joined & models.GameSession.game_key.notin_(_ADVANCED_KEYS)
+    rows = (
+        db.query(models.ChildProfile, total)
+        .outerjoin(models.GameSession, joined)
+        .group_by(models.ChildProfile.id)
+        .order_by(total.desc(), models.ChildProfile.id)
+        .limit(max(1, min(limit, 100)))
+        .all()
+    )
+    return [
+        schemas.LeaderboardEntry(
+            child_id=child.id, name=child.name, avatar=child.avatar, total_score=score
+        )
+        for child, score in rows
+    ]
+
+
 @router.get("/profiles/{child_id}/stats", response_model=schemas.StatsOut)
 def child_stats(
     child_id: int,
@@ -60,8 +100,10 @@ def child_stats(
         g["plays"] += 1
         g["total"] += s.score
         g["best"] = max(g["best"], s.score)
+    # The per-game breakdown keeps the advanced games' personal bests, but
+    # their points stay out of the child's ⭐ total (separate economy).
     return schemas.StatsOut(
-        total_score=sum(s.score for s in sessions),
+        total_score=sum(s.score for s in sessions if s.game_key not in _ADVANCED_KEYS),
         plays=len(sessions),
         games=games,
     )

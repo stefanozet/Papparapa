@@ -1,13 +1,14 @@
 // Application controller: authentication, profile selection, game menu and
 // the run orchestration (playing several games one after another).
 import { api } from "./api.js";
-import { buildHud, GameEngine, moduleFor } from "./engine.js";
-import { celebrate, clear, el, setTheme, showScreen, wait } from "./ui.js";
+import { buildHud, GameEngine, loadRenderer } from "./engine.js";
+import { sfx } from "./sound.js";
+import { celebrate, clear, confirmKey, el, setTheme, showScreen, wait } from "./ui.js";
 
 const AVATARS = ["🐻", "🦊", "🐰", "🐼", "🐶", "🐱", "🦁", "🐸", "🐵", "🦄",
   "🐯", "🐨", "🐷", "🐔", "🐙", "🦖", "🐝", "🐳", "🦉", "🐢"];
 
-let catalogue = null;   // { games: [...], default_run: [...] }
+let catalogue = null;   // { games: [...] } — menu order, easiest first
 let currentChild = null;
 
 // --------------------------------------------------------------------------- //
@@ -142,8 +143,13 @@ function showHome() {
     bar.append(el("div", "spacer"), el("div", "who", { textContent: currentChild.avatar }));
     screen.appendChild(bar);
 
+    // A full partita follows the server's plan: easy games first, and the
+    // easiest ones come back at the end in a harder mode (level_delta > 0).
     const play = el("button", "btn-huge", { textContent: "▶️", title: "Gioca tutto" });
-    play.onclick = () => runGames(catalogue.default_run);
+    play.onclick = async () => {
+      try { runGames((await api.planRun(currentChild.id)).plan); }
+      catch (ex) { showError(ex, showHome); }
+    };
     const playWrap = el("div", "center");
     playWrap.style.gap = "8px";
     playWrap.append(play, el("p", "subtitle", { textContent: "Gioca!" }));
@@ -152,28 +158,74 @@ function showHome() {
     const grid = el("div", "grid");
     grid.style.gridTemplateColumns = "repeat(3, 1fr)";
     grid.style.marginTop = "18px";
-    catalogue.games.forEach((g) => {
-      const card = el("div", "game-card");
-      card.style.setProperty("--accent", g.color);
-      card.append(el("div", "face", { textContent: g.icon }));
-      card.onclick = () => runGames([g.key]);
-      grid.appendChild(card);
+    catalogue.games.filter((g) => !g.advanced).forEach((g) => {
+      grid.appendChild(gameCard(g));
     });
     screen.appendChild(grid);
 
+    const links = el("div", "bottom-links");
     const trophy = el("div", "btn ghost", { textContent: "🏆 I miei punti" });
-    trophy.style.marginTop = "auto";
     trophy.onclick = showStats;
-    screen.appendChild(trophy);
+    const ranking = el("div", "btn ghost", { textContent: "🏅 Classifica" });
+    ranking.onclick = showLeaderboard;
+    links.append(trophy, ranking);
+    if (catalogue.games.some((g) => g.advanced)) {
+      const adv = el("div", "btn ghost", { textContent: "🧪 Giochi avanzati" });
+      adv.onclick = showAdvanced;
+      links.appendChild(adv);
+    }
+    screen.appendChild(links);
+  });
+}
+
+function gameCard(g) {
+  const card = el("div", "game-card");
+  card.style.setProperty("--accent", g.color);
+  card.append(el("div", "face", { textContent: g.icon }));
+  if (g.stars) card.append(el("div", "diff", { textContent: "🔥".repeat(g.stars) }));
+  card.onclick = () => runGames([{ key: g.key }]);
+  return card;
+}
+
+/** Advanced games: played on demand, scored outside the ⭐ economy. */
+function showAdvanced() {
+  setTheme("#5B8DEF");
+  showScreen((screen) => {
+    screen.appendChild(topbar({ onBack: showHome }));
+    screen.appendChild(el("p", "subtitle", { textContent: "🧪 Giochi avanzati" }));
+    const grid = el("div", "grid");
+    grid.style.gridTemplateColumns = "repeat(3, 1fr)";
+    grid.style.marginTop = "18px";
+    catalogue.games.filter((g) => g.advanced).forEach((g) => {
+      grid.appendChild(gameCard(g));
+    });
+    screen.appendChild(grid);
+  });
+}
+
+/** Full-screen error state: a failed fetch must never leave a dead button. */
+function showError(ex, onBack) {
+  showScreen((screen) => {
+    screen.appendChild(topbar({ onBack }));
+    const body = el("div", "scroll-area");
+    body.append(
+      el("div", "big-emoji", { textContent: "😵" }),
+      el("p", "subtitle", { textContent: ex.message || "Errore" })
+    );
+    screen.appendChild(body);
   });
 }
 
 async function showStats() {
-  const stats = await api.stats(currentChild.id);
+  let stats;
+  try { stats = await api.stats(currentChild.id); }
+  catch (ex) { return showError(ex, showHome); }
   showScreen((screen) => {
     screen.appendChild(topbar({ onBack: showHome }));
-    screen.classList.add("center");
-    screen.append(
+    // The list can outgrow the viewport: the topbar stays put and the body
+    // scrolls on its own, so the back button is always reachable.
+    const body = el("div", "scroll-area");
+    body.append(
       el("div", "big-emoji", { textContent: "🏆" }),
       el("div", "big-score", { textContent: "⭐ " + stats.total_score })
     );
@@ -193,45 +245,85 @@ async function showStats() {
       list.appendChild(row);
     });
     if (!Object.keys(stats.games).length) {
-      screen.appendChild(el("p", "subtitle", { textContent: "Gioca per guadagnare stelle!" }));
+      body.appendChild(el("p", "subtitle", { textContent: "Gioca per guadagnare stelle!" }));
     }
-    screen.appendChild(list);
+    body.appendChild(list);
+    screen.appendChild(body);
+  });
+}
+
+async function showLeaderboard() {
+  setTheme("#5B8DEF");
+  let entries;
+  try { entries = await api.leaderboard(); }
+  catch (ex) { return showError(ex, showHome); }
+  showScreen((screen) => {
+    screen.appendChild(topbar({ onBack: showHome }));
+    const body = el("div", "scroll-area");
+    body.append(el("div", "big-emoji", { textContent: "🏅" }));
+
+    const medals = ["🥇", "🥈", "🥉"];
+    const list = el("div", "grid");
+    list.style.width = "100%";
+    entries.forEach((entry, i) => {
+      const mine = entry.child_id === currentChild.id;
+      const row = el("div", "rank-row" + (mine ? " me" : ""));
+      row.append(
+        el("span", "rank", { textContent: medals[i] || String(i + 1) }),
+        el("span", "face", { textContent: entry.avatar }),
+        el("span", "name", { textContent: entry.name }),
+        el("span", "pts", { textContent: "⭐ " + entry.total_score })
+      );
+      list.appendChild(row);
+    });
+    if (!entries.length) {
+      body.appendChild(el("p", "subtitle", { textContent: "Ancora nessun giocatore" }));
+    }
+    body.appendChild(list);
+    screen.appendChild(body);
   });
 }
 
 // --------------------------------------------------------------------------- //
 // Playing a run of one or more games
 // --------------------------------------------------------------------------- //
-async function runGames(keys) {
+async function runGames(plan) {
   let total = 0;
   let gameOver = false;
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[i];
-    const start = await api.start(key, currentChild.id);
-    setTheme(start.game.color);
+  try {
+    for (let i = 0; i < plan.length; i++) {
+      const entry = plan[i];
+      const start = await api.start(entry.key, currentChild.id, entry.level_delta || 0);
+      setTheme(start.game.color);
+      // The renderer arrives with the game's meta (base kind or bundled
+      // renderer_url); a game the frontend can't render must not crash here.
+      const module = await loadRenderer(start.game);
 
-    await playTutorial(start.game, start.tutorial);
-    const result = await playGame(start.game, start.activities);
+      await playTutorial(start.game, module, start.tutorial);
+      const result = await playGame(start.game, module, start.activities, total, start.start_level);
 
-    const finish = await api.finish(start.session_id, {
-      results: result.results,
-      errors: result.errors,
-      ended_reason: result.reason,
-    });
-    total += finish.score;
+      const finish = await api.finish(start.session_id, {
+        results: result.results,
+        errors: result.errors,
+        ended_reason: result.reason,
+      });
+      total += finish.score;
 
-    // Three errors end the whole partita, not just the current game.
-    if (result.reason === "errors") {
-      gameOver = true;
-      break;
+      // Three errors end the whole partita, not just the current game.
+      if (result.reason === "errors") {
+        gameOver = true;
+        break;
+      }
+      await showGameResult(start.game, finish, i < plan.length - 1);
     }
-    await showGameResult(start.game, finish, i < keys.length - 1);
+  } catch (ex) {
+    return showError(ex, showHome);
   }
   await showFinalResult(total, gameOver);
 }
 
 /** Wordless animated demo, then a big "ready" button. */
-function playTutorial(game, tutorial) {
+function playTutorial(game, module, tutorial) {
   return new Promise((resolve) => {
     showScreen((screen) => {
       screen.classList.add("game-screen");
@@ -245,28 +337,32 @@ function playTutorial(game, tutorial) {
       stage.id = "stage";
       screen.appendChild(stage);
 
-      const module = moduleFor(game.key);
       module.renderTutorial(stage, tutorial, () => {
         const go = el("button", "btn-huge", { textContent: "👍" });
         go.style.margin = "0 auto 30px";
-        go.onclick = resolve;
+        const off = confirmKey(() => { off(); resolve(); });   // Space/Enter starts
+        go.onclick = () => { off(); resolve(); };
         screen.appendChild(go);
       });
     });
   });
 }
 
-async function playGame(game, activities) {
+async function playGame(game, module, activities, baseScore = 0, startLevel = 1) {
   let hud;
   const screen = showScreen((s) => {
     s.classList.add("game-screen");
-    hud = buildHud(s, { timed: game.timed });
+    hud = buildHud(s, {
+      timed: game.timed,
+      hearts: !game.self_scored,
+      level: !game.self_scored,
+    });
     const stage = el("div", null);
     stage.id = "stage";
     s.appendChild(stage);
   });
   const stage = screen.querySelector("#stage");
-  const engine = new GameEngine({ meta: game, activities, stage, hud });
+  const engine = new GameEngine({ meta: game, module, activities, stage, hud, baseScore, startLevel });
   return engine.run();
 }
 
@@ -279,7 +375,7 @@ function starsFor(correct) {
 
 function showGameResult(game, finish, more) {
   return new Promise((resolve) => {
-    if (finish.correct_count > 0) celebrate();
+    if (finish.correct_count > 0) { celebrate(); sfx.win(); }
     showScreen((screen) => {
       screen.classList.add("center");
       setTheme(game.color);
@@ -288,8 +384,12 @@ function showGameResult(game, finish, more) {
         el("div", "stars-row", { textContent: starsFor(finish.correct_count) }),
         el("div", "big-score", { textContent: "⭐ " + finish.score })
       );
+      if (!game.self_scored) {
+        screen.append(el("div", "level-line", { textContent: "🚀 " + finish.level }));
+      }
       const next = el("button", "btn-huge", { textContent: more ? "➡️" : "🏁" });
-      next.onclick = resolve;
+      const off = confirmKey(() => { off(); resolve(); });
+      next.onclick = () => { off(); resolve(); };
       screen.appendChild(next);
     });
   });
@@ -298,7 +398,8 @@ function showGameResult(game, finish, more) {
 async function showFinalResult(total, gameOver) {
   // A partita that ended on the third mistake still celebrates the points won,
   // just a little more gently (no confetti, a friendly face instead of a cup).
-  if (!gameOver) celebrate(["🏆", "⭐", "🎉", "🌟", "🎈", "✨"], 40);
+  if (gameOver) sfx.gameOver();
+  else { celebrate(["🏆", "⭐", "🎉", "🌟", "🎈", "✨"], 40); sfx.win(); }
   await wait(150);
   showScreen((screen) => {
     screen.classList.add("center");
@@ -308,11 +409,12 @@ async function showFinalResult(total, gameOver) {
       el("div", "big-score", { textContent: "⭐ " + total }),
       el("p", "subtitle", { textContent: currentChild.avatar })
     );
+    const off = confirmKey(() => { off(); showHome(); });
     const again = el("button", "btn-huge", { textContent: "🔁" });
-    again.onclick = showHome;
+    again.onclick = () => { off(); showHome(); };
     screen.appendChild(again);
     const home = el("div", "btn ghost", { textContent: "🏠" });
-    home.onclick = showHome;
+    home.onclick = () => { off(); showHome(); };
     screen.appendChild(home);
   });
 }

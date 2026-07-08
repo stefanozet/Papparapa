@@ -46,8 +46,13 @@ class GameMeta(BaseModel):
     name: str
     icon: str
     color: str
+    kind: str                   # interaction the frontend renders (choice, maze, ...)
+    renderer_url: str | None = None  # set → the game bundles its own renderer.js
+    advanced: bool = False      # own menu page; score outside ⭐ totals/leaderboard
+    self_scored: bool = False   # the game awards its own points (no hearts/levels)
     timed: bool
     duration_seconds: int
+    quiz_count: int             # > 0 → no countdown, the game ends after N quizzes
     max_errors: int
 
 
@@ -56,6 +61,7 @@ class StartOut(BaseModel):
     game: GameMeta
     tutorial: dict[str, Any]
     activities: list[dict[str, Any]]
+    start_level: int = 1        # the child resumes from their best level
 
 
 class ResultItem(BaseModel):
@@ -75,9 +81,18 @@ class FinishOut(BaseModel):
     correct_count: int
     errors: int
     ended_reason: str
+    level: int = 1              # level reached in this session
+    max_level: int = 1          # best level ever, persisted per child+game
 
 
 class StatsOut(BaseModel):
     total_score: int
     plays: int
     games: dict[str, dict[str, int]]
+
+
+class LeaderboardEntry(BaseModel):
+    child_id: int
+    name: str
+    avatar: str
+    total_score: int

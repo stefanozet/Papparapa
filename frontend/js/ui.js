@@ -1,4 +1,5 @@
 // Small DOM helpers, screen management and celebration effects.
+import { sfx } from "./sound.js";
 
 export function el(tag, cls, props = {}) {
   const node = document.createElement(tag);
@@ -28,6 +29,25 @@ export function setTheme(color) {
 
 export function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
+/**
+ * Run `action` when the user presses Space or Enter ("confirm and go on").
+ * Returns a function that detaches the listener; it also self-detaches once
+ * fired, so the primary button on a screen can share the same handler.
+ */
+export function confirmKey(action) {
+  const off = () => window.removeEventListener("keydown", handler);
+  const handler = (e) => {
+    if (e.key === "Enter" || e.key === " " || e.code === "Space") {
+      e.preventDefault();
+      off();
+      sfx.tap();
+      action();
+    }
+  };
+  window.addEventListener("keydown", handler);
+  return off;
+}
+
 /** Rain a burst of celebratory emoji from the top of the screen. */
 export function celebrate(emojis = ["⭐", "🎉", "🌟", "🎈", "✨"], count = 28) {
   const fx = document.getElementById("fx");
@@ -41,6 +61,39 @@ export function celebrate(emojis = ["⭐", "🎉", "🌟", "🎈", "✨"], count
     fx.appendChild(piece);
     setTimeout(() => piece.remove(), (dur + 1) * 1000);
   }
+}
+
+/** Small starburst of emoji flying out from a viewport point. */
+export function burst(x, y, emojis = ["✨", "⭐"], count = 8) {
+  const fx = document.getElementById("fx");
+  for (let i = 0; i < count; i++) {
+    const piece = el("span", "fx-piece", {
+      textContent: emojis[Math.floor(Math.random() * emojis.length)],
+    });
+    piece.style.left = x + "px";
+    piece.style.top = y + "px";
+    const angle = (i / count) * 2 * Math.PI + Math.random() * 0.6;
+    const dist = 45 + Math.random() * 55;
+    piece.animate(
+      [
+        { transform: "translate(-50%,-50%) scale(1)", opacity: 1 },
+        {
+          transform: `translate(calc(-50% + ${Math.cos(angle) * dist}px),` +
+            ` calc(-50% + ${Math.sin(angle) * dist}px)) scale(.35)`,
+          opacity: 0,
+        },
+      ],
+      { duration: 550 + Math.random() * 250, easing: "ease-out", fill: "forwards" }
+    );
+    fx.appendChild(piece);
+    setTimeout(() => piece.remove(), 900);
+  }
+}
+
+/** Starburst centred on a DOM node (the tapped option, card or cell). */
+export function burstFrom(node, emojis) {
+  const r = node.getBoundingClientRect();
+  burst(r.left + r.width / 2, r.top + r.height / 2, emojis);
 }
 
 /** Briefly pop an emoji in the centre of the stage as instant feedback. */

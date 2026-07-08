@@ -36,9 +36,14 @@ export const api = {
     return this.req("/profiles", { method: "POST", body: { name, avatar } });
   },
   stats(childId) { return this.req(`/profiles/${childId}/stats`); },
+  leaderboard() { return this.req("/leaderboard"); },
   games() { return this.req("/games", { auth: false }); },
-  start(key, childId) {
-    return this.req(`/games/${key}/start?child_id=${childId}`, { method: "POST" });
+  planRun(childId) { return this.req(`/runs/plan?child_id=${childId}`); },
+  start(key, childId, levelDelta = 0) {
+    return this.req(
+      `/games/${key}/start?child_id=${childId}&level_delta=${levelDelta}`,
+      { method: "POST" }
+    );
   },
   finish(sessionId, payload) {
     return this.req(`/sessions/${sessionId}/finish`, { method: "POST", body: payload });

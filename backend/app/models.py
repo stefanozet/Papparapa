@@ -3,7 +3,16 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, JSON
+from sqlalchemy import (
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    JSON,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 
 from .database import Base
@@ -64,3 +73,41 @@ class GameSession(Base):
     finished_at = Column(DateTime, nullable=True)
 
     child = relationship("ChildProfile", back_populates="sessions")
+
+
+class GameLevel(Base):
+    """Highest level a child has reached in a game; play resumes from there."""
+
+    __tablename__ = "game_levels"
+    __table_args__ = (
+        UniqueConstraint("child_id", "game_key", name="uq_game_level_child_game"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    child_id = Column(Integer, ForeignKey("child_profiles.id"), nullable=False, index=True)
+    game_key = Column(String, nullable=False)
+    level = Column(Integer, nullable=False, default=1)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ActivityStat(Base):
+    """Aggregated trial outcomes per game *difficulty bucket*.
+
+    A bucket is a signature of the parameters a quiz was generated from (e.g.
+    ``sequence:ABC`` or ``odd:near/opt6``). ``prior`` keeps the parametric
+    difficulty of those parameters; ``attempts``/``failures`` accumulate how
+    children actually did, so the score can be calibrated empirically.
+    """
+
+    __tablename__ = "activity_stats"
+    __table_args__ = (
+        UniqueConstraint("game_key", "bucket", name="uq_activity_stat_bucket"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    game_key = Column(String, nullable=False, index=True)
+    bucket = Column(String, nullable=False)
+    prior = Column(Float, nullable=False, default=0.0)      # parametric difficulty
+    attempts = Column(Integer, nullable=False, default=0)
+    failures = Column(Integer, nullable=False, default=0)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
