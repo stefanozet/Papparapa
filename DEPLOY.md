@@ -63,6 +63,18 @@ curl -I http://127.0.0.1:8000
 
 Deve rispondere `200 OK`.
 
+
+### 2.1 Abilitare ProxyPreserveHost su Ubuntu
+
+ProxyPreserveHost, ProxyPass, ProxyPassReverse ecc. sono fornite da mod_proxy e mod_proxy_http, che su Ubuntu non sono attivi di default.
+
+Sul server esegui:
+```bash
+a2enmod proxy proxy_http
+apache2ctl configtest    # deve rispondere "Syntax OK"
+systemctl restart apache2
+```
+
 ## 2. Apache come reverse proxy (porta 80 → 8000)
 
 ```bash
